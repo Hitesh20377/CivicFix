@@ -1,0 +1,28 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Python
+*.py text diff=python
+*.pyc binary
+
+# Node
+*.js text
+*.ts text
+*.jsx text
+*.tsx text
+package-lock.json binary
+
+# Shell
+*.sh text eol=lf
+
+# Docs
+*.md text
+*.txt text
+
+# Docker
+Dockerfile text
+docker-compose*.yml text
+
+# Exclude documentation and config from language stats
+docs/* linguist-documentation
+.vscode/* linguist-generated

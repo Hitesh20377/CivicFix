@@ -1,0 +1,94 @@
+services:
+  nginx:
+    build:
+      context: .
+      dockerfile: ./frontend/Dockerfile
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - api
+    restart: always
+    networks:
+      - app_network
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: gunicorn --bind 0.0.0.0:5000 run:app --workers 4
+    environment:
+      - FLASK_ENV=production
+      - DATABASE_URL=postgresql://civicfix_user:${DB_PASSWORD}@postgres:5432/civicfix_db
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY}
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+    depends_on:
+      - postgres
+      - redis
+    restart: always
+    networks:
+      - app_network
+
+  celery:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: celery -A run.celery worker --loglevel=info
+    environment:
+      - FLASK_ENV=production
+      - DATABASE_URL=postgresql://civicfix_user:${DB_PASSWORD}@postgres:5432/civicfix_db
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY}
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+    depends_on:
+      - postgres
+      - redis
+    restart: always
+    networks:
+      - app_network
+
+  postgres:
+    image: postgis/postgis:15-3.3
+    environment:
+      - POSTGRES_USER=civicfix_user
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=civicfix_db
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    restart: always
+    networks:
+      - app_network
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    volumes:
+      - redis_prod_data:/data
+    networks:
+      - app_network
+
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ACCESS_KEY}
+      - MINIO_ROOT_PASSWORD=${MINIO_SECRET_KEY}
+    volumes:
+      - minio_prod_data:/data
+    restart: always
+    networks:
+      - app_network
+
+networks:
+  app_network:
+    driver: bridge
+
+volumes:
+  postgres_prod_data:
+  redis_prod_data:
+  minio_prod_data:

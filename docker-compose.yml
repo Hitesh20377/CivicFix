@@ -1,0 +1,129 @@
+services:
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: flask run --host=0.0.0.0 --port=5000 --debug
+    environment:
+      - FLASK_APP=run.py
+      - FLASK_ENV=development
+      - DATABASE_URL=postgresql://civicfix_user:${DB_PASSWORD:-password}@postgres:5432/civicfix_db
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY:-dev-secret-key}
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-admin}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-password123}
+    ports:
+      - "5000:5000"
+    depends_on:
+      - postgres
+      - redis
+      - minio
+    volumes:
+      - ./backend:/app
+    networks:
+      - app_network
+
+  celery:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: celery -A run.celery worker --loglevel=info
+    environment:
+      - FLASK_APP=run.py
+      - FLASK_ENV=development
+      - DATABASE_URL=postgresql://civicfix_user:${DB_PASSWORD:-password}@postgres:5432/civicfix_db
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY:-dev-secret-key}
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-admin}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-password123}
+    depends_on:
+      - postgres
+      - redis
+      - minio
+    volumes:
+      - ./backend:/app
+    networks:
+      - app_network
+
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: celery -A run.celery beat --loglevel=info
+    environment:
+      - FLASK_APP=run.py
+      - FLASK_ENV=development
+      - DATABASE_URL=postgresql://civicfix_user:${DB_PASSWORD:-password}@postgres:5432/civicfix_db
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY:-dev-secret-key}
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-admin}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-password123}
+    depends_on:
+      - postgres
+      - redis
+      - minio
+    volumes:
+      - ./backend:/app
+    networks:
+      - app_network
+
+  frontend:
+    image: node:20-alpine
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    environment:
+      - VITE_PROXY_TARGET=http://api:5000
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+    networks:
+      - app_network
+
+  postgres:
+    image: postgis/postgis:15-3.3
+    environment:
+      - POSTGRES_USER=civicfix_user
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-password}
+      - POSTGRES_DB=civicfix_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app_network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - app_network
+
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ACCESS_KEY:-admin}
+      - MINIO_ROOT_PASSWORD=${MINIO_SECRET_KEY:-password123}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - app_network
+
+networks:
+  app_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
